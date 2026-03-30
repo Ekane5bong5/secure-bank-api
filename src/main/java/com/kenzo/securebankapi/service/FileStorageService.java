@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.UUID;
@@ -11,7 +12,7 @@ import java.util.UUID;
 @Service
 public class FileStorageService {
 
-    private static final String UPLOAD_DIR = "/tmp/uploads/";
+    private final Path uploadDir = Paths.get("/tmp/uploads").toAbsolutePath().normalize();
 
     public String storeFile(MultipartFile file) throws IOException {
 
@@ -49,7 +50,7 @@ public class FileStorageService {
         String safeFileName = UUID.randomUUID() + "-" + cleanName;
 
         // 🔴 7. Build safe path
-        Path uploadPath = Paths.get(UPLOAD_DIR).toAbsolutePath().normalize();
+        Path uploadPath = uploadDir.toAbsolutePath().normalize();
         Path targetLocation = uploadPath.resolve(safeFileName);
 
         // 🔴 8. Prevent path traversal
@@ -61,5 +62,30 @@ public class FileStorageService {
         Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
 
         return safeFileName;
+    }
+    public byte[] readFile(String filename) throws IOException {
+
+        // 🔹 Step 1: Resolve + normalize path
+        Path targetPath = uploadDir.resolve(filename).normalize();
+
+        // 🔥 LOG #1 — BEFORE security check
+        System.out.println("🧪 Requested path resolves to: " + targetPath);
+
+        // 🔥 CRITICAL: Enforce boundary
+        if (!targetPath.startsWith(uploadDir)) {
+            System.out.println("🚨 BLOCKED PATH TRAVERSAL: " + targetPath); // ✅ LOG #2
+            throw new SecurityException("Path traversal attempt detected");
+        }
+
+        // 🔹 Step 2: Check file exists
+        if (!Files.exists(targetPath)) {
+            throw new FileNotFoundException("File not found");
+        }
+
+        // 🔥 LOG #3 — BEFORE reading file
+        System.out.println("📂 Reading file: " + targetPath);
+
+        // 🔹 Step 3: Read file
+        return Files.readAllBytes(targetPath);
     }
 }

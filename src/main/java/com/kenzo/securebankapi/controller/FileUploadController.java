@@ -30,4 +30,20 @@ public class FileUploadController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @GetMapping("/read")
+    public ResponseEntity<byte[]> readFile(@RequestParam String filename) {
+
+        System.out.println("🔥 CONTROLLER HIT 🔥");
+
+        try {
+            byte[] data = fileStorageService.readFile(filename);
+            return ResponseEntity.ok()
+                    .header("Content-Type", "application/octet-stream")
+                    .body(data);
+        } catch (Exception e) {
+            e.printStackTrace(); // 🔥 THIS LINE IS CRITICAL
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }
