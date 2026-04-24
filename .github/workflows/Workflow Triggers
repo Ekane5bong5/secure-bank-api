@@ -233,6 +233,8 @@ on:
 - No scheduled scans — new CVEs disclosed after last code push never get caught until someone pushes again
 - `workflow_dispatch` with no environment protection rules — anyone can manually trigger a production deployment
 
+The synchronize activity type is the most important one for AppSec — it fires when a new commit is pushed to an existing PR. That means your security scan runs every time a developer updates their PR, not just when they open it. Every code change gets scanned before merge.
+
 ---
 
 ## Self-test
