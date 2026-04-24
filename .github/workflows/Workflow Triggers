@@ -1,0 +1,244 @@
+# GitHub Actions — Workflow Triggers
+
+## What triggers are
+
+A trigger tells GitHub Actions when to run your workflow. Every workflow must have at least one trigger defined under `on:`.
+
+---
+
+## Common triggers
+
+### push — run on every commit pushed
+
+```yaml
+on: push
+```
+
+Fires whenever anyone pushes a commit to any branch. Most basic trigger.
+
+### pull_request — run on PR activity
+
+```yaml
+on:
+  pull_request:
+    types: [opened, edited, closed, assigned]
+```
+
+Fires when a PR is opened, edited, closed, or assigned. If you omit `types:`, it defaults to `opened`, `synchronize`, and `reopened`.
+
+### schedule — run on a cron schedule
+
+```yaml
+on:
+  schedule:
+    - cron: '30 5 * * 1-5'    # 5:30am every weekday
+    - cron: '0 0 * * 0'       # midnight every Sunday
+```
+
+Cron syntax: `minute hour day-of-month month day-of-week`
+
+Use [crontab.guru](https://crontab.guru) to build and test cron expressions visually.
+
+### workflow_dispatch — manual trigger with a button
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+        type: choice
+        options:
+          - info
+          - warning
+          - debug
+```
+
+Adds a "Run workflow" button in the GitHub Actions UI. Inputs let you pass parameters at runtime. Reference them in steps:
+
+```yaml
+steps:
+  - name: Show inputs
+    run: |
+      echo "Environment: ${{ inputs.environment }}"
+      echo "Log level: ${{ inputs.logLevel }}"
+```
+
+### fork, issues, release
+
+```yaml
+on: fork      # fires when someone forks the repo
+on: issues    # fires when issues are opened or modified
+on: release   # fires on draft, published, or edited releases
+```
+
+---
+
+## Combining multiple triggers
+
+You can list multiple triggers under `on:` — the workflow runs when any of them fire:
+
+```yaml
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * 1'    # also runs every Monday at midnight
+  workflow_dispatch:         # also runnable manually
+```
+
+---
+
+## Filtering triggers by branch or path
+
+Narrow down when a trigger fires using filters:
+
+```yaml
+on:
+  push:
+    branches:
+      - main
+      - 'release/*'    # matches release/1.0, release/2.0, etc.
+    paths:
+      - 'src/**'       # only trigger if files in src/ changed
+      - '**.py'        # only trigger if any .py file changed
+
+  pull_request:
+    branches:
+      - main           # only PRs targeting main
+```
+
+**branches** — only fire on pushes to these branches
+**paths** — only fire if these files were changed — useful for monorepos
+
+---
+
+## Filters and activity types
+
+### branches-ignore — exclude branch patterns
+
+```yaml
+on:
+  push:
+    branches:
+      - main
+    branches-ignore:
+      - 'feature/*'    # wildcards supported — ignores feature/login, feature/scanner, etc.
+```
+
+### paths — only trigger when specific files change
+
+```yaml
+on:
+  push:
+    paths:
+      - 'src/**'      # only if something in src/ changed
+      - '**.py'       # only if any Python file changed
+```
+
+### paths-ignore — skip when only these files change
+
+```yaml
+on:
+  pull_request:
+    paths-ignore:
+      - README.md
+      - 'docs/**'    # documentation changes don't need a full pipeline run
+```
+
+### PR activity types — control which PR actions trigger
+
+```yaml
+on:
+  pull_request:
+    types:
+      - opened        # new PR created
+      - closed        # PR closed or merged
+      - synchronize   # new commit pushed to existing PR — most important for scans
+```
+
+Default PR types if you don't specify: `opened`, `synchronize`, `reopened`.
+
+### Combining everything
+
+```yaml
+on:
+  push:
+    branches:
+      - main
+    branches-ignore:
+      - 'feature/*'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - main
+    paths-ignore:
+      - README.md
+      - 'docs/**'
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+```
+
+---
+
+## AppSec relevance
+
+Triggers are where pipeline security policy starts. In a pipeline security review you'd look for:
+
+**What to check:**
+- Is the SAST scan triggered on every PR to main — not just on push?
+- Is there a scheduled scan running weekly even without code changes — to catch newly disclosed CVEs?
+- Is `workflow_dispatch` restricted — or can anyone manually trigger a deployment?
+- Are branch filters set — or does every push to every branch trigger production workflows?
+
+**Secure trigger patterns:**
+
+```yaml
+# Security scan on every PR — catches issues before merge
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+
+# Scheduled dependency scan — catches new CVEs even without code changes
+on:
+  schedule:
+    - cron: '0 6 * * 1'    # every Monday at 6am
+
+# Manual deployment with environment input — controlled, auditable
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deploy target'
+        required: true
+        type: choice
+        options: [staging, production]
+```
+
+---
+
+## Common mistakes
+
+- Using `on: push` without branch filters — triggers on every branch including dev branches, wastes CI minutes
+- Not triggering security scans on pull requests — vulnerabilities get merged before being caught
+- No scheduled scans — new CVEs disclosed after last code push never get caught until someone pushes again
+- `workflow_dispatch` with no environment protection rules — anyone can manually trigger a production deployment
+
+---
+
+## Self-test
+
+- What is the difference between `push` and `pull_request` triggers?
+- What does `workflow_dispatch` add to a workflow?
+- How do you limit a push trigger to only fire on the main branch?
+- Why would you add a scheduled trigger even if you already have a push trigger?
+- What does the `paths` filter do?
